@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blocky.io</title>
+    <!-- Include Three.js for 3D block rendering -->
+    <script src="https://cloudflare.com"></script>
+    <style>
+        body, html { margin: 0; padding: 0; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #1a1a1a; color: white; }
+        #canvas-container { width: 100vw; height: 100vh; display: none; }
+        
+        /* HOMEPAGE STYLE */
+        #homepage { position: absolute; width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; background: radial-gradient(#2c3e50, #0f171e); z-index: 10; }
+        h1 { font-size: 4.5rem; color: #00ffff; margin-bottom: 20px; letter-spacing: 4px; text-shadow: 0 0 20px rgba(0,255,255,0.5); }
+        .input-group { margin-bottom: 25px; display: flex; flex-direction: column; align-items: center; }
+        label { margin-bottom: 8px; font-size: 1.1rem; color: #b0c4de; }
+        input { padding: 12px 20px; font-size: 1.2rem; border: 2px solid #00ffff; border-radius: 8px; background: rgba(0,0,0,0.5); color: white; outline: none; text-align: center; }
+        button { padding: 15px 40px; font-size: 1.3rem; font-weight: bold; background: #007acc; color: white; border: none; border-radius: 8px; cursor: pointer; transition: 0.2s; box-shadow: 0 5px 15px rgba(0,122,204,0.4); }
+        button:hover { background: #0098ff; transform: scale(1.05); }
+        
+        /* LOADING SCREEN STYLE */
+        #loading-screen { position: absolute; width: 100%; height: 100%; display: none; flex-direction: column; justify-content: center; align-items: center; background: #111; z-index: 9; }
+        #loading-text { font-size: 2rem; color: #ffd700; margin-bottom: 15px; }
+        #progress-bar-container { width: 300px; height: 20px; background: #333; border-radius: 10px; overflow: hidden; border: 1px solid #ffd700; }
+        #progress-bar { width: 0%; height: 100%; background: #ffd700; transition: width 0.1s; }
+        
+        /* IN-GAME HUD */
+        #hud { position: absolute; top: 20px; left: 20px; font-size: 1.2rem; background: rgba(0,0,0,0.6); padding: 10px 20px; border-radius: 5px; pointer-events: none; display: none; }
+    </style>
+</head>
+<body>
+
+    <!-- 1. HOMEPAGE -->
+    <div id="homepage">
+        <h1>BLOCKY.IO</h1>
+        <div class="input-group">
+            <label for="username">Enter Username:</label>
+            <input type="text" id="username" placeholder="ZakirKing123" maxlength="15">
+        </div>
+        <button onclick="startLoading()">PLAY NOW</button>
+    </div>
+
+    <!-- 2. LOADING SCREEN -->
+    <div id="loading-screen">
+        <div id="loading-text">Loading Blocky.io World... 0%</div>
+        <div id="progress-bar-container">
+            <div id="progress-bar"></div>
+        </div>
+    </div>
+
+    <!-- 3. GAME VIEW -->
+    <div id="hud">Player: <span id="hud-username"></span></div>
+    <div id="canvas-container"></div>
+
+    <script>
+        let username = "";
+        
+        function startLoading() {
+            const inputVal = document.getElementById('username').value.trim();
+            username = inputVal || "GuestPlayer";
+            
+            // UI State Transition
+            document.getElementById('homepage').style.display = 'none';
+            document.getElementById('loading-screen').style.display = 'flex';
+            
+            simulateLoading();
+        }
+
+        function simulateLoading() {
+            let progress = 0;
+            const progressBar = document.getElementById('progress-bar');
+            const loadingText = document.getElementById('loading-text');
+            
+            const interval = setInterval(() => {
+                progress += Math.floor(Math.random() * 15) + 5;
+                if (progress >= 100) {
+                    progress = 100;
+                    clearInterval(interval);
+                    setTimeout(initGame, 300); // Launch game when loaded
+                }
+                progressBar.style.width = progress + '%';
+                loadingText.innerText = `Loading Blocky.io World... {progress}%`;
+            }, 150);
+        }
+
+        // --- CORE 3D ENGINE & BLOCK UPDATES ---
+        function initGame() {
+            document.getElementById('loading-screen').style.display = 'none';
+            document.getElementById('canvas-container').style.display = 'block';
+            document.getElementById('hud').style.display = 'block';
+            document.getElementById('hud-username').innerText = username;
+
+            // Scene setup
+            const scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x1a252f);
+            
+            const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            const renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+            // Simple Lighting
+            const light = new THREE.DirectionalLight(0xffffff, 1);
+            light.position.set(5, 10, 7).normalize();
+            scene.add(light);
+            scene.add(new THREE.AmbientLight(0x404040));
+
+            // Generate Map Grid
+            const geometry = new THREE.BoxGeometry(1, 1, 1);
+            const material = new THREE.MeshLambertMaterial({ color: 0x2ecc71 }); // Green blocks
+            
+            const worldSize = 12;
+            for (let x = 0; x < worldSize; x++) {
+                for (let z = 0; z < worldSize; z++) {
+                    const cube = new THREE.Mesh(geometry, material);
+                    cube.position.set(x - worldSize/2, 0, z - worldSize/2);
+                    
+                    // Outlines to make it look blocky/voxelized
+                    const edges = new THREE.EdgesGeometry(geometry);
+                    const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x27ae60 }));
+                    cube.add(line);
+                    
+                    scene.add(cube);
+                }
+            }
+
+            // Position Camera looking down at the world
+            camera.position.set(0, 8, 12);
+            camera.lookAt(0, 0, 0);
+
+            // Simple spin animation just to show world is alive
+            function animate() {
+                requestAnimationFrame(animate);
+                scene.rotation.y += 0.003; 
+                renderer.render(scene, camera);
+            }
+            animate();
+
+            // Handle window resizing
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+        }
+    </script>
+</body>
+</html>
