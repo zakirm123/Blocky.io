@@ -4,13 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Blocky.io</title>
-    <!-- Include Three.js for 3D block rendering -->
-    <script src="https://cloudflare.com"></script>
     <style>
-        body, html { margin: 0; padding: 0; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #1a1a1a; color: white; }
-        #canvas-container { width: 100vw; height: 100vh; display: none; }
+        body, html { margin: 0; padding: 0; overflow: hidden; font-family: 'Segoe UI', sans-serif; background: #1a1a1a; color: white; }
+        #game-canvas { width: 100vw; height: 100vh; display: none; background: #1a252f; }
         
-        /* HOMEPAGE STYLE */
+        /* HOMEPAGE */
         #homepage { position: absolute; width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; background: radial-gradient(#2c3e50, #0f171e); z-index: 10; }
         h1 { font-size: 4.5rem; color: #00ffff; margin-bottom: 20px; letter-spacing: 4px; text-shadow: 0 0 20px rgba(0,255,255,0.5); }
         .input-group { margin-bottom: 25px; display: flex; flex-direction: column; align-items: center; }
@@ -19,19 +17,19 @@
         button { padding: 15px 40px; font-size: 1.3rem; font-weight: bold; background: #007acc; color: white; border: none; border-radius: 8px; cursor: pointer; transition: 0.2s; box-shadow: 0 5px 15px rgba(0,122,204,0.4); }
         button:hover { background: #0098ff; transform: scale(1.05); }
         
-        /* LOADING SCREEN STYLE */
+        /* LOADING SCREEN */
         #loading-screen { position: absolute; width: 100%; height: 100%; display: none; flex-direction: column; justify-content: center; align-items: center; background: #111; z-index: 9; }
         #loading-text { font-size: 2rem; color: #ffd700; margin-bottom: 15px; }
         #progress-bar-container { width: 300px; height: 20px; background: #333; border-radius: 10px; overflow: hidden; border: 1px solid #ffd700; }
-        #progress-bar { width: 0%; height: 100%; background: #ffd700; transition: width 0.1s; }
+        #progress-bar { width: 0%; height: 100%; background: #ffd700; }
         
         /* IN-GAME HUD */
-        #hud { position: absolute; top: 20px; left: 20px; font-size: 1.2rem; background: rgba(0,0,0,0.6); padding: 10px 20px; border-radius: 5px; pointer-events: none; display: none; }
+        #hud { position: absolute; top: 20px; left: 20px; font-size: 1.2rem; background: rgba(0,0,0,0.7); padding: 10px 20px; border-radius: 5px; pointer-events: none; display: none; border: 1px solid #00ffff; }
     </style>
 </head>
 <body>
 
-    <!-- 1. HOMEPAGE -->
+    <!-- HOMEPAGE -->
     <div id="homepage">
         <h1>BLOCKY.IO</h1>
         <div class="input-group">
@@ -41,7 +39,7 @@
         <button onclick="startLoading()">PLAY NOW</button>
     </div>
 
-    <!-- 2. LOADING SCREEN -->
+    <!-- LOADING SCREEN -->
     <div id="loading-screen">
         <div id="loading-text">Loading Blocky.io World... 0%</div>
         <div id="progress-bar-container">
@@ -49,21 +47,20 @@
         </div>
     </div>
 
-    <!-- 3. GAME VIEW -->
+    <!-- GAME ENGINE VIEW -->
     <div id="hud">Player: <span id="hud-username"></span></div>
-    <div id="canvas-container"></div>
+    <canvas id="game-canvas"></canvas>
 
     <script>
         let username = "";
-        
+        const canvas = document.getElementById('game-canvas');
+        const ctx = canvas.getContext('2d');
+        let angle = 0;
+
         function startLoading() {
-            const inputVal = document.getElementById('username').value.trim();
-            username = inputVal || "GuestPlayer";
-            
-            // UI State Transition
+            username = document.getElementById('username').value.trim() || "ZakirKing123";
             document.getElementById('homepage').style.display = 'none';
             document.getElementById('loading-screen').style.display = 'flex';
-            
             simulateLoading();
         }
 
@@ -73,76 +70,96 @@
             const loadingText = document.getElementById('loading-text');
             
             const interval = setInterval(() => {
-                progress += Math.floor(Math.random() * 15) + 5;
+                progress += Math.floor(Math.random() * 12) + 6;
                 if (progress >= 100) {
                     progress = 100;
                     clearInterval(interval);
-                    setTimeout(initGame, 300); // Launch game when loaded
+                    setTimeout(initGame, 200);
                 }
                 progressBar.style.width = progress + '%';
-                loadingText.innerText = `Loading Blocky.io World... {progress}%`;
-            }, 150);
+                loadingText.innerText = `Loading Blocky.io World... ${progress}%`;
+            }, 100);
         }
 
-        // --- CORE 3D ENGINE & BLOCK UPDATES ---
         function initGame() {
             document.getElementById('loading-screen').style.display = 'none';
-            document.getElementById('canvas-container').style.display = 'block';
+            canvas.style.display = 'block';
             document.getElementById('hud').style.display = 'block';
             document.getElementById('hud-username').innerText = username;
 
-            // Scene setup
-            const scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x1a252f);
-            
-            const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-            const renderer = new THREE.WebGLRenderer({ antialias: true });
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            document.getElementById('canvas-container').appendChild(renderer.domElement);
+            resizeCanvas();
+            window.addEventListener('resize', resizeCanvas);
+            animate();
+        }
 
-            // Simple Lighting
-            const light = new THREE.DirectionalLight(0xffffff, 1);
-            light.position.set(5, 10, 7).normalize();
-            scene.add(light);
-            scene.add(new THREE.AmbientLight(0x404040));
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
 
-            // Generate Map Grid
-            const geometry = new THREE.BoxGeometry(1, 1, 1);
-            const material = new THREE.MeshLambertMaterial({ color: 0x2ecc71 }); // Green blocks
-            
-            const worldSize = 12;
-            for (let x = 0; x < worldSize; x++) {
-                for (let z = 0; z < worldSize; z++) {
-                    const cube = new THREE.Mesh(geometry, material);
-                    cube.position.set(x - worldSize/2, 0, z - worldSize/2);
-                    
-                    // Outlines to make it look blocky/voxelized
-                    const edges = new THREE.EdgesGeometry(geometry);
-                    const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x27ae60 }));
-                    cube.add(line);
-                    
-                    scene.add(cube);
+        // Native Isometric Voxel Rendering Matrix
+        function drawCube(x, y, z, size) {
+            // Isometric projection formulas
+            let isoX = (x - z) * size * 0.8 + (canvas.width / 2);
+            let isoY = (x + z) * size * 0.4 - (y * size * 0.8) + (canvas.height / 2) + 50;
+
+            // Rotate world center point
+            let cx = canvas.width / 2;
+            let cy = canvas.height / 2 + 50;
+            let rx = cosRot(isoX - cx, isoY - cy) + cx;
+            let ry = sinRot(isoX - cx, isoY - cy) + cy;
+
+            // Draw Top Face
+            ctx.fillStyle = "#2ecc71";
+            ctx.beginPath();
+            ctx.moveTo(rx, ry - size * 0.4);
+            ctx.lineTo(rx + size * 0.8, ry);
+            ctx.lineTo(rx, ry + size * 0.4);
+            ctx.lineTo(rx - size * 0.8, ry);
+            ctx.closePath();
+            ctx.fill();
+            ctx.strokeStyle = "#27ae60";
+            ctx.stroke();
+
+            // Draw Left Face
+            ctx.fillStyle = "#27ae60";
+            ctx.beginPath();
+            ctx.moveTo(rx - size * 0.8, ry);
+            ctx.lineTo(rx, ry + size * 0.4);
+            ctx.lineTo(rx, ry + size * 0.4 + size * 0.8);
+            ctx.lineTo(rx - size * 0.8, ry + size * 0.8);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+
+            // Draw Right Face
+            ctx.fillStyle = "#1e824c";
+            ctx.beginPath();
+            ctx.moveTo(rx, ry + size * 0.4);
+            ctx.lineTo(rx + size * 0.8, ry);
+            ctx.lineTo(rx + size * 0.8, ry + size * 0.8);
+            ctx.lineTo(rx, ry + size * 0.4 + size * 0.8);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+        }
+
+        function cosRot(x, y) { return x * Math.cos(angle) - y * Math.sin(angle); }
+        function sinRot(x, y) { return x * Math.sin(angle) + y * Math.cos(angle); }
+
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            angle += 0.005; // Spin velocity
+
+            // Generate full 3D interactive block grid
+            let gridSize = 10;
+            let blockSize = 30;
+            for (let x = 0; x < gridSize; x++) {
+                for (let z = 0; z < gridSize; z++) {
+                    drawCube(x - gridSize/2, 0, z - gridSize/2, blockSize);
                 }
             }
-
-            // Position Camera looking down at the world
-            camera.position.set(0, 8, 12);
-            camera.lookAt(0, 0, 0);
-
-            // Simple spin animation just to show world is alive
-            function animate() {
-                requestAnimationFrame(animate);
-                scene.rotation.y += 0.003; 
-                renderer.render(scene, camera);
-            }
-            animate();
-
-            // Handle window resizing
-            window.addEventListener('resize', () => {
-                camera.aspect = window.innerWidth / window.innerHeight;
-                camera.updateProjectionMatrix();
-                renderer.setSize(window.innerWidth, window.innerHeight);
-            });
+            requestAnimationFrame(animate);
         }
     </script>
 </body>
