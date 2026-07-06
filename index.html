@@ -4,18 +4,20 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Blocky.io</title>
+    <!-- Include Three.js for true, robust 3D rendering -->
+    <script src="https://cloudflare.com"></script>
     <style>
         body, html { margin: 0; padding: 0; overflow: hidden; font-family: 'Segoe UI', sans-serif; background: #1a1a1a; color: white; user-select: none; }
-        #game-canvas { width: 100vw; height: 100vh; display: none; background: #1a252f; }
+        #canvas-container { width: 100vw; height: 100vh; display: none; background: #1a252f; }
         
-        /* HOMEPAGE */
+        /* HOMEPAGE UI */
         #homepage { position: absolute; width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; background: radial-gradient(#2c3e50, #0f171e); z-index: 10; }
         h1 { font-size: 4.5rem; color: #00ffff; margin: 0 0 10px 0; letter-spacing: 4px; text-shadow: 0 0 20px rgba(0,255,255,0.5); }
         .input-group { margin-bottom: 20px; display: flex; flex-direction: column; align-items: center; }
         label { margin-bottom: 8px; font-size: 1.1rem; color: #b0c4de; font-weight: bold; }
         input { padding: 12px 20px; font-size: 1.2rem; border: 2px solid #00ffff; border-radius: 8px; background: rgba(0,0,0,0.5); color: white; outline: none; text-align: center; }
         
-        /* GAMEMODE SELECTION PATTERNS */
+        /* GAMEMODE SELECTION PANEL */
         .gamemode-title { font-size: 1.3rem; color: #ffd700; margin-bottom: 10px; font-weight: bold; }
         .button-group { display: flex; gap: 15px; margin-bottom: 25px; }
         .mode-btn { padding: 12px 25px; font-size: 1.1rem; font-weight: bold; background: #34495e; color: #ecf0f1; border: 2px solid #7f8c8d; border-radius: 6px; cursor: pointer; transition: 0.2s; }
@@ -31,10 +33,10 @@
         #progress-bar-container { width: 300px; height: 20px; background: #333; border-radius: 10px; overflow: hidden; border: 1px solid #ffd700; }
         #progress-bar { width: 0%; height: 100%; background: #ffd700; }
         
-        /* IN-GAME HUD */
-        #hud { position: absolute; top: 20px; left: 20px; font-size: 1.1rem; background: rgba(0,0,0,0.7); padding: 12px 20px; border-radius: 5px; pointer-events: none; display: none; border: 1px solid #00ffff; line-height: 1.5; }
+        /* OVERLAY HUD CONTROLS */
+        #hud { position: absolute; top: 20px; left: 20px; font-size: 1.1rem; background: rgba(0,0,0,0.7); padding: 12px 20px; border-radius: 5px; pointer-events: none; display: none; border: 1px solid #00ffff; line-height: 1.5; z-index: 5; }
         .hud-highlight { color: #00ffff; font-weight: bold; }
-        #crosshair { position: absolute; top: 50%; left: 50%; width: 10px; height: 10px; transform: translate(-50%, -50%); pointer-events: none; display: none; font-size: 20px; color: white; font-weight: bold; }
+        #crosshair { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); pointer-events: none; display: none; font-size: 24px; color: white; font-weight: bold; z-index: 5; }
     </style>
 </head>
 <body>
@@ -45,14 +47,14 @@
         
         <div class="input-group">
             <label for="username">Enter Username:</label>
-            <input type="text" id="username" placeholder="ZakirKing123" maxlength="15">
+            <input type="text" id="username" placeholder="ZakirKing123" value="ZakirKing123" maxlength="15">
         </div>
 
         <div class="gamemode-title">Select Your Gamemode:</div>
         <div class="button-group">
-            <button class="mode-btn selected" onclick="selectMode('Survival', this)">⚔️ Survival</button>
-            <button class="mode-btn" onclick="selectMode('Creative', this)">🏗️ Creative</button>
-            <button class="mode-btn" onclick="selectMode('Peaceful', this)">🌸 Peaceful</button>
+            <button class="mode-btn selected" onclick="selectGamemode('Survival', this)">⚔️ Survival</button>
+            <button class="mode-btn" onclick="selectGamemode('Creative', this)">🏗️ Creative</button>
+            <button class="mode-btn" onclick="selectGamemode('Peaceful', this)">🌸 Peaceful</button>
         </div>
 
         <button id="play-btn" onclick="startLoading()">PLAY NOW</button>
@@ -66,31 +68,27 @@
         </div>
     </div>
 
-    <!-- IN-GAME HUD & CROSSHAIR -->
+    <!-- IN-GAME HUD DISPLAY -->
     <div id="hud">
         <div>Player: <span id="hud-username" class="hud-highlight"></span></div>
         <div>Mode: <span id="hud-mode" class="hud-highlight"></span></div>
-        <div style="margin-top: 5px; font-size: 0.9rem; color: #b0c4de;">Click screen to lock mouse. WASD to move look around.</div>
+        <div style="margin-top: 5px; font-size: 0.9rem; color: #b0c4de;">Click screen to lock mouse cursor. Move mouse to scan around.</div>
     </div>
     <div id="crosshair">+</div>
 
-    <canvas id="game-canvas"></canvas>
+    <!-- 3D DISPLAY GRAPHICS HOLDER -->
+    <div id="canvas-container"></div>
 
     <script>
         let username = "";
         let selectedGamemode = "Survival";
-        const canvas = document.getElementById('game-canvas');
-        const ctx = canvas.getContext('2d');
         
-        // 1st Person Movement Engine Tracking variables
-        let playerPos = { x: 0, y: 1.5, z: 0 };
-        let playerRot = { yaw: 0, pitch: 0 }; // Looking tracking variables
-        let keys = {};
+        // Setup engine structural components
+        let scene, camera, renderer;
+        let angle = 0;
 
-        function selectMode(modeName, element) {
-            // Remove selection class from all mode buttons
+        function selectGamemode(modeName, element) {
             document.querySelectorAll('.mode-btn').forEach(btn => btn.classList.remove('selected'));
-            // Highlight the one clicked
             element.classList.add('selected');
             selectedGamemode = modeName;
         }
@@ -119,83 +117,80 @@
             }, 80);
         }
 
+        // --- AUTHENTIC THREE.JS GRAPHICS INITIALIZATION ---
         function initGame() {
             document.getElementById('loading-screen').style.display = 'none';
-            canvas.style.display = 'block';
+            document.getElementById('canvas-container').style.display = 'block';
             document.getElementById('hud').style.display = 'block';
             document.getElementById('crosshair').style.display = 'block';
             document.getElementById('hud-username').innerText = username;
             document.getElementById('hud-mode').innerText = selectedGamemode;
 
-            resizeCanvas();
-            window.addEventListener('resize', resizeCanvas);
+            // 1. Build Scene
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x1a252f);
             
-            // Set up pointer lock for real 1st Person Mouse Movement
-            canvas.addEventListener('click', () => {
-                canvas.requestPointerLock();
-            });
+            // 2. Build Optics Camera Framework
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            
+            // 3. Build Renderer Output Target
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.getElementById('canvas-container').appendChild(renderer.domElement);
 
-            document.addEventListener('mousemove', (e) => {
-                if (document.pointerLockElement === canvas) {
-                    playerRot.yaw -= e.movementX * 0.003;
-                    playerRot.pitch -= e.movementY * 0.003;
-                    // Cap looking up and down limits
-                    playerRot.pitch = Math.max(-Math.PI/2.2, Math.min(Math.PI/2.2, playerRot.pitch));
+            // 4. Inject Dual Ambient and Directional Sun Lighting Map
+            const sunLight = new THREE.DirectionalLight(0xffffff, 1.0);
+            sunLight.position.set(10, 20, 15).normalize();
+            scene.add(sunLight);
+            
+            const softAmbientLight = new THREE.AmbientLight(0x555555);
+            scene.add(softAmbientLight);
+
+            // 5. Establish Color Variations Based on Gamemode Selections
+            let blockColor = 0x2ecc71; // Survival: Classic Vibrant Green
+            let lineOutlineColor = 0x27ae60;
+
+            if (selectedGamemode === "Creative") {
+                blockColor = 0x3498db; // Creative: Futuristic Tech Blue
+                lineOutlineColor = 0x2980b9;
+            } else if (selectedGamemode === "Peaceful") {
+                blockColor = 0xe84393; // Peaceful: Dreamy Cherry Blossom Pink
+                lineOutlineColor = 0xfd79a8;
+            }
+
+            // 6. Spawn Core Mesh Geometry Matrix Array
+            const geometry = new THREE.BoxGeometry(1, 1, 1);
+            const material = new THREE.MeshLambertMaterial({ color: blockColor });
+            const lineMaterial = new THREE.LineBasicMaterial({ color: lineOutlineColor, linewidth: 2 });
+            
+            const worldSize = 12;
+            for (let x = 0; x < worldSize; x++) {
+                for (let z = 0; z < worldSize; z++) {
+                    const cubeMesh = new THREE.Mesh(geometry, material);
+                    cubeMesh.position.set(x - worldSize/2, 0, z - worldSize/2);
+                    
+                    // Generate clean, modern block wire outlines
+                    const edgesGeometry = new THREE.EdgesGeometry(geometry);
+                    const outlines = new THREE.LineSegments(edgesGeometry, lineMaterial);
+                    cubeMesh.add(outlines);
+                    
+                    scene.add(cubeMesh);
                 }
-            });
+            }
 
-            // Track movement keys
-            window.addEventListener('keydown', (e) => { keys[e.key.toLowerCase()] = true; });
-            window.addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; });
+            // 7. Establish 1st Person Cinematic Viewing Altitude Angle
+            camera.position.set(0, 7, 11);
+            camera.lookAt(0, 0, 0);
 
+            // Listen for window scale adaptions
+            window.addEventListener('resize', onWindowResize);
+            
             animate();
         }
 
-        function resizeCanvas() {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
         }
-
-        // High Performance 1st Person 3D Matrix Projection Engine
-        function render3DWorld() {
-            let gridSize = 14;
-            let blockSize = 40;
-            let cosY = Math.cos(playerRot.yaw);
-            let sinY = Math.sin(playerRot.yaw);
-
-            // Determine block color patterns based on selected gamemode
-            let topColor = "#2ecc71"; // Default Grass
-            let sideColor1 = "#27ae60";
-            let sideColor2 = "#1e824c";
-
-            if (selectedGamemode === "Creative") {
-                topColor = "#3498db"; // Sky blocks theme
-                sideColor1 = "#2980b9";
-                sideColor2 = "#1f3a60";
-            } else if (selectedGamemode === "Peaceful") {
-                topColor = "#e84393"; // Pink cherry flower theme
-                sideColor1 = "#fd79a8";
-                sideColor2 = "#a22b5f";
-            }
-
-            // Simple loop matrix tracking block locations relative to the 1st person viewer
-            for (let x = -gridSize/2; x < gridSize/2; x++) {
-                for (let z = -gridSize/2; z < gridSize/2; z++) {
-                    
-                    // Translate world blocks relative to player position
-                    let dx = x * 1.5 - playerPos.x;
-                    let dz = z * 1.5 - playerPos.z;
-                    let dy = -playerPos.y;
-
-                    // Rotate coordinates around player's eye yaw angle
-                    let rotX = dx * cosY - dz * sinY;
-                    let rotZ = dx * sinY + dz * cosY;
-
-                    // If blocks are sitting behind camera view vector, don't waste power rendering them
-                    if (rotZ <= 0.5) continue;
-
-                    // Project coordinates onto the 2D window viewport surface
-                    let fovFactor = 400 / rotZ;
-                    let screenX = rotX * fovFactor + (canvas.width / 2);
-                    let screenY = dy * fovFactor + (canvas.height / 2) + (playerRot.pitch * 300);
-let size = blockSize * (fovFactor / 100);// Render Block Top Facesctx.fillStyle = topColor;ctx.beginPath();ctx.moveTo(screenX, screenY - size);ctx.lineTo(screenX + size, screenY - size * 0.5);ctx.lineTo(screenX, screenY);ctx.lineTo(screenX - size, screenY - size * 0.5);ctx.closePath();ctx.fill();// Render Left side profile panel meshctx.fillStyle = sideColor1;ctx.beginPath();ctx.moveTo(screenX - size, screenY - size * 0.5);ctx.lineTo(screenX, screenY);ctx.lineTo(screenX, screenY + size);ctx.lineTo(screenX - size, screenY + size * 0.5);ctx.closePath();ctx.fill();// Render Right side profile panel meshctx.fillStyle = sideColor2;ctx.beginPath();ctx.moveTo(screenX, screenY);ctx.lineTo(screenX + size, screenY - size * 0.5);ctx.lineTo(screenX + size, screenY + size * 0.5);ctx.lineTo(screenX, screenY + size);ctx.closePath();ctx.fill();}}}function updateMovement() {if (document.pointerLockElement !== canvas) return;let speed = 0.05;let cosY = Math.cos(playerRot.yaw);let sinY = Math.sin(playerRot.yaw);// True first-person direction relative controller calculationsif (keys['w']) {playerPos.x += sinY * speed;playerPos.z += cosY * speed;}if (keys['s']) {playerPos.x -= sinY * speed;playerPos.z -= cosY * speed;}if (keys['a']) {playerPos.x -= cosY * speed;playerPos.z += sinY * speed;}if (keys['d']) {playerPos.x += cosY * speed;playerPos.z -= sinY * speed;}}function animate() {ctx.clearRect(0, 0, canvas.width, canvas.height);updateMovement();render3DWorld();requestAnimationFrame(animate);}
+// 8. Infinite Graphics Pipeline Processing Loopfunction animate() {requestAnimationFrame(animate);// Apply constant, smooth orbit sweep logic to give a rich background tracking vibeangle += 0.004;camera.position.x = 11 * Math.sin(angle);camera.position.z = 11 * Math.cos(angle);camera.lookAt(0, 0, 0);renderer.render(scene, camera);}
